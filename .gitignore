@@ -1,0 +1,12 @@
+# Local Python environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+
+# PyInstaller build outputs
+/build/
+/dist/
+/*.spec
+
+# Local writable application data
+/data/

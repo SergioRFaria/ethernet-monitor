@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ethernet Port Monitor</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script defer src="/static/js/speedtest.js"></script>
+    <script defer src="/static/js/dashboard.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar card">
+            <h1>Ethernet Port Monitor</h1>
+            <div class="controls">
+                <label for="interface-select">Interface</label>
+                <select id="interface-select"></select>
+                <button id="refresh-button" type="button">Refresh</button>
+                <button id="reset-button" type="button" class="secondary">Reset statistics</button>
+            </div>
+            <div class="topbar__status">
+                <span class="status-label">Connection</span>
+                <span id="connection-status" class="status-pill status-pill--warn">Connecting…</span>
+                <span class="status-label">Monitoring</span>
+                <span id="monitoring-status" class="status-pill status-pill--warn">Loading…</span>
+            </div>
+        </header>
+
+        <section id="unavailable-banner" class="banner banner--hidden"></section>
+
+        <section class="summary card">
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="summary-label">Interface</span>
+                    <span id="summary-interface" class="summary-value">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Status</span>
+                    <span id="summary-state" class="summary-value status-text">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">IPv4</span>
+                    <span id="summary-ipv4" class="summary-value">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">MAC</span>
+                    <span id="summary-mac" class="summary-value">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Link Speed</span>
+                    <span id="summary-link-speed" class="summary-value">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Monitoring</span>
+                    <span id="summary-duration" class="summary-value">00:00:00</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Last update</span>
+                    <span id="summary-updated" class="summary-value">—</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Packet health</span>
+                    <span id="summary-packet-health" class="summary-value">—</span>
+                </div>
+            </div>
+        </section>
+
+        <nav class="tabs" role="tablist">
+            <button id="tab-graphs" class="tab tab--active" type="button" role="tab" aria-selected="true" aria-controls="panel-graphs" data-tab="graphs">Graphs</button>
+            <button id="tab-telemetry" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-telemetry" data-tab="telemetry">Telemetry</button>
+            <button id="tab-speedtest" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-speedtest" data-tab="speedtest">Speed Test</button>
+        </nav>
+
+        <main class="tab-content">
+            <section id="panel-graphs" class="tab-panel charts-grid" role="tabpanel" aria-labelledby="tab-graphs">
+                <article class="chart-panel card">
+                    <div class="panel__heading">
+                        <h2>Ethernet port throughput</h2>
+                        <span class="chart-note">Mbps vs time</span>
+                    </div>
+                    <div class="chart-wrap"><canvas id="throughput-chart"></canvas></div>
+                </article>
+
+                <article class="chart-panel card">
+                    <div class="panel__heading">
+                        <h2>Interface utilization</h2>
+                        <span class="chart-note">0–100%</span>
+                    </div>
+                    <div class="chart-wrap"><canvas id="utilization-chart"></canvas></div>
+                </article>
+            </section>
+
+            <section id="panel-telemetry" class="tab-panel monitor-grid" role="tabpanel" aria-labelledby="tab-telemetry" hidden>
+                <section class="panel card">
+                    <div class="panel__heading">
+                        <h2>Download / RX</h2>
+                        <span id="rx-utilization-class" class="util-chip util-chip--normal">Normal</span>
+                    </div>
+                    <div class="kpi-grid" id="rx-kpi-grid">
+                        <div class="kpi-card"><span class="kpi-label">Current Download Speed</span><strong id="rx-current">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Peak Download Speed</span><strong id="rx-peak">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Average Download Speed</span><strong id="rx-average">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Download Utilization</span><strong id="rx-utilization">0.0%</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Total Data Received</span><strong id="rx-total-bytes">0 B</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">RX Packets</span><strong id="rx-packets">0</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">RX Errors</span><strong id="rx-errors">0</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">RX Drops</span><strong id="rx-drops">0</strong></div>
+                    </div>
+                </section>
+
+                <section class="panel card">
+                    <div class="panel__heading">
+                        <h2>Upload / TX</h2>
+                        <span id="tx-utilization-class" class="util-chip util-chip--normal">Normal</span>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card"><span class="kpi-label">Current Upload Speed</span><strong id="tx-current">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Peak Upload Speed</span><strong id="tx-peak">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Average Upload Speed</span><strong id="tx-average">0.0 Mbps</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Upload Utilization</span><strong id="tx-utilization">0.0%</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">Total Data Sent</span><strong id="tx-total-bytes">0 B</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">TX Packets</span><strong id="tx-packets">0</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">TX Errors</span><strong id="tx-errors">0</strong></div>
+                        <div class="kpi-card"><span class="kpi-label">TX Drops</span><strong id="tx-drops">0</strong></div>
+                    </div>
+                </section>
+            </section>
+
+            <section id="panel-speedtest" class="tab-panel speedtest-panel" role="tabpanel" aria-labelledby="tab-speedtest" hidden>
+                <div class="st-mode-banner">
+                    <span class="st-mode-tag">ACTIVE SPEED TEST</span>
+                    <span>Unlike the passive monitoring in Graphs / Telemetry, this test intentionally generates network traffic using iPerf3 against a server you control.</span>
+                </div>
+                <div id="st-iperf-banner" class="banner banner--hidden"></div>
+
+                <div class="st-grid">
+                    <section class="panel card">
+                        <div class="panel__heading">
+                            <h2>Test configuration</h2>
+                            <span id="st-iperf-version" class="chart-note">iPerf3: checking…</span>
+                        </div>
+                        <div class="st-form">
+                            <label for="st-interface">Network interface</label>
+                            <select id="st-interface"></select>
+
+                            <label for="st-server">iPerf3 server address</label>
+                            <input id="st-server" type="text" maxlength="253" placeholder="e.g. 192.168.1.100" autocomplete="off" spellcheck="false" />
+
+                            <label for="st-port">Port</label>
+                            <div class="st-inline">
+                                <input id="st-port" type="number" min="1" max="65535" value="5201" />
+                                <button id="st-save-server" type="button" class="secondary">Save server</button>
+                            </div>
+
+                            <label for="st-mode">Test mode</label>
+                            <select id="st-mode">
+                                <option value="quick">QUICK TEST — latency, jitter, loss (no saturation)</option>
+                                <option value="tcp">TCP TEST — upload + download</option>
+                                <option value="udp">UDP TEST — throughput, jitter, loss</option>
+                                <option value="full" selected>FULL TEST — latency + TCP + UDP</option>
+                            </select>
+
+                            <label for="st-duration">Duration</label>
+                            <select id="st-duration">
+                                <option value="5">5 seconds</option>
+                                <option value="10" selected>10 seconds</option>
+                                <option value="20">20 seconds</option>
+                                <option value="30">30 seconds</option>
+                            </select>
+
+                            <label for="st-streams">TCP parallel streams</label>
+                            <select id="st-streams">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="4" selected>4</option>
+                                <option value="8">8</option>
+                            </select>
+
+                            <label for="st-udp-bw">UDP target bandwidth</label>
+                            <div class="st-inline">
+                                <select id="st-udp-bw">
+                                    <option value="10">10 Mbps</option>
+                                    <option value="50">50 Mbps</option>
+                                    <option value="100" selected>100 Mbps</option>
+                                    <option value="250">250 Mbps</option>
+                                    <option value="500">500 Mbps</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <input id="st-udp-custom" type="number" min="1" max="10000" step="1" placeholder="Mbps" hidden />
+                            </div>
+
+                            <label for="st-bidir">Bidirectional TCP</label>
+                            <label class="st-check"><input id="st-bidir" type="checkbox" disabled /> <span id="st-bidir-note">Requires iPerf3 3.7+</span></label>
+                        </div>
+                        <p class="st-warning">Speed testing generates significant network traffic and may temporarily affect other users or applications.</p>
+                        <p id="st-udp-warning" class="st-note">UDP is not congestion-controlled: aggressive UDP targets may intentionally congest the link.</p>
+                        <div class="st-actions">
+                            <button id="st-start" type="button" class="st-primary">START TEST</button>
+                            <button id="st-cancel" type="button" class="secondary" disabled>CANCEL TEST</button>
+                        </div>
+                    </section>
+
+                    <section class="panel card">
+                        <div class="panel__heading">
+                            <h2>Interface context</h2>
+                            <span id="st-if-type" class="chart-note">—</span>
+                        </div>
+                        <dl id="st-context" class="st-dl"></dl>
+                        <p id="st-wifi-reason" class="st-note" hidden></p>
+
+                        <div class="panel__heading st-progress-heading">
+                            <h2>Test status</h2>
+                            <span id="st-state" class="status-pill status-pill--good">READY TO TEST</span>
+                        </div>
+                        <div class="st-progress">
+                            <div class="st-progress__label"><span id="st-phase-label">READY TO TEST</span><span id="st-phase-percent">0 %</span></div>
+                            <div class="st-bar"><div id="st-phase-bar" class="st-bar__fill"></div></div>
+                            <div class="st-progress__label st-muted"><span>Overall</span><span id="st-overall-percent">0 %</span></div>
+                            <div class="st-bar st-bar--thin"><div id="st-overall-bar" class="st-bar__fill st-bar__fill--overall"></div></div>
+                            <div id="st-phases" class="st-phases"></div>
+                            <p id="st-message" class="st-note"></p>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="panel card">
+                    <div class="panel__heading">
+                        <h2>Results</h2>
+                        <span id="st-result-status" class="chart-note">No result yet</span>
+                    </div>
+                    <div class="st-cards">
+                        <div class="kpi-card st-card"><span class="kpi-label">TCP DOWNLOAD</span><strong id="st-r-download">—</strong><span class="st-sub" id="st-r-download-sub">server → client</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label">TCP UPLOAD</span><strong id="st-r-upload">—</strong><span class="st-sub" id="st-r-upload-sub">client → server</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label">LATENCY</span><strong id="st-r-latency">—</strong><span class="st-sub" id="st-r-latency-sub">ICMP avg RTT</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label">JITTER</span><strong id="st-r-jitter">—</strong><span class="st-sub">ICMP RTT variation</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label">PACKET LOSS</span><strong id="st-r-loss">—</strong><span class="st-sub">ICMP</span></div>
+                    </div>
+                    <div class="st-cards st-cards--eff">
+                        <div class="kpi-card st-card"><span class="kpi-label" id="st-eff-label">THROUGHPUT EFFICIENCY</span><strong id="st-r-eff-down">—</strong><span class="st-sub" id="st-r-eff-down-sub">download</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label" id="st-eff-label-up">THROUGHPUT EFFICIENCY</span><strong id="st-r-eff-up">—</strong><span class="st-sub" id="st-r-eff-up-sub">upload</span></div>
+                        <div class="kpi-card st-card"><span class="kpi-label">UDP THROUGHPUT</span><strong id="st-r-udp">—</strong><span class="st-sub" id="st-r-udp-sub">—</span></div>
+                    </div>
+                    <ul id="st-warnings" class="st-warnings"></ul>
+                    <dl id="st-secondary" class="st-dl st-dl--cols"></dl>
+                </section>
+
+                <div class="st-grid">
+                    <section class="panel card">
+                        <div class="panel__heading">
+                            <h2>Compare with previous test</h2>
+                            <span id="st-compare-note" class="chart-note">same interface</span>
+                        </div>
+                        <table class="st-table">
+                            <thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Difference</th></tr></thead>
+                            <tbody id="st-compare-body"><tr><td colspan="4">No previous completed test.</td></tr></tbody>
+                        </table>
+                    </section>
+
+                    <section class="panel card">
+                        <div class="panel__heading">
+                            <h2>Speed test history</h2>
+                            <select id="st-history-range" class="st-small-select">
+                                <option value="10">Last 10 tests</option>
+                                <option value="50" selected>Last 50 tests</option>
+                                <option value="24h">Last 24 hours</option>
+                            </select>
+                        </div>
+                        <div class="st-chart-wrap"><canvas id="st-history-chart"></canvas></div>
+                    </section>
+                </div>
+
+                <section class="panel card">
+                    <div class="panel__heading">
+                        <h2>Recent tests</h2>
+                        <span class="chart-note">click TIME to sort</span>
+                    </div>
+                    <div class="st-table-wrap">
+                        <table class="st-table">
+                            <thead>
+                                <tr>
+                                    <th><button id="st-sort-time" type="button" class="st-sort">TIME ▼</button></th>
+                                    <th>INTERFACE</th><th>TYPE</th><th>MODE</th><th>DOWNLOAD</th><th>UPLOAD</th><th>LATENCY</th><th>JITTER</th><th>LOSS</th><th>SERVER</th><th>STATUS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="st-history-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="panel card">
+                    <div class="panel__heading">
+                        <h2>iPerf server (optional, local)</h2>
+                        <span id="st-srv-status" class="status-pill status-pill--warn">STOPPED</span>
+                    </div>
+                    <p class="st-note">Lets this PC act as the iPerf3 SERVER for another client. Separate from client testing; never started automatically. Windows Firewall must allow inbound TCP/UDP on the chosen port for iperf3.exe.</p>
+                    <div class="st-inline">
+                        <label for="st-srv-bind">Listening address</label>
+                        <select id="st-srv-bind" class="st-small-select"></select>
+                        <label for="st-srv-port">Port</label>
+                        <input id="st-srv-port" type="number" min="1" max="65535" value="5201" />
+                        <button id="st-srv-start" type="button">START LOCAL IPERF SERVER</button>
+                        <button id="st-srv-stop" type="button" class="secondary">STOP LOCAL IPERF SERVER</button>
+                    </div>
+                    <p id="st-srv-info" class="st-note"></p>
+                </section>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
